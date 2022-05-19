@@ -511,6 +511,114 @@ def Hermite(degree: int) -> InternalLayer:
 
 
 @layer
+@supports_masking(remask_kernel=False)
+def Monomial(degree: int) -> InternalLayer:
+  """Monomials.
+
+  Args:
+    degree: an integer between 0 and 5.
+
+  Returns:
+    `(init_fn, apply_fn, kernel_fn)`.
+  """
+  if degree not in [0, 1, 2, 3, 4, 5]:
+    raise NotImplementedError('The `degree` must be an integer between '
+                              '`0` and `5`.')
+
+  def fn(x):
+    return x**degree
+
+  def kernel_fn(k: Kernel) -> Kernel:
+    cov1, nngp, cov2, ntk = k.cov1, k.nngp, k.cov2, k.ntk
+
+    prod11, prod12, prod22 = get_diagonal_outer_prods(cov1,
+                                                      cov2,
+                                                      k.diagonal_batch,
+                                                      k.diagonal_spatial,
+                                                      op.mul)
+
+    def nngp_ntk_fn(
+        nngp: np.ndarray,
+        prod: np.ndarray,
+        ntk: Optional[np.ndarray] = None
+    ) -> Tuple[np.ndarray, Optional[np.ndarray]]:
+
+      if degree == 0:
+        nngp = np.ones_like(nngp)
+
+        if ntk is not None:
+          ntk = np.zeros_like(ntk)
+
+      elif degree == 1:
+        pass
+
+      elif degree == 2:
+        if ntk is not None:
+          ntk *= 4 * nngp
+        nngp = 2 * nngp**2 + prod
+
+      elif degree == 3:
+        if ntk is not None:
+          ntk *= 9 * (2 * nngp**2 + prod)
+        nngp = 6 * nngp**3 + 9 * nngp * prod
+
+      elif degree == 4:
+        if ntk is not None:
+          ntk *= 48 * nngp * (2 * nngp**2 + 3 * prod)
+        nngp = 3 * (8 * nngp**4 + 3 * prod * (8 * nngp**2 + prod))
+
+      elif degree == 5:
+        if ntk is not None:
+          ntk *= 75 * (8 * nngp**4 + 3 * prod * (8 * nngp**2 + prod))
+        nngp = 15 * nngp * (8 * nngp**4 + 5 * prod * (8 * nngp**2 + 3 * prod))
+
+      else:
+        raise NotImplementedError(degree)
+
+      return nngp, ntk
+
+    def nngp_fn_diag(nngp: np.ndarray) -> np.ndarray:
+      if degree == 0:
+        nngp = np.ones_like(nngp)
+
+      elif degree == 1:
+        pass
+
+      elif degree == 2:
+        nngp = 2 + nngp**2
+
+      elif degree == 3:
+        nngp = 6 + 9 * nngp**2
+
+      elif degree == 4:
+        nngp = 3 * (8 + 24 * nngp**2 + 3 * nngp**4)
+
+      elif degree == 5:
+        nngp = 15 * (8 + 5 * nngp**2 * (8 + 3 * nngp**2))
+
+      else:
+        raise NotImplementedError(degree)
+
+      return nngp
+
+    nngp, ntk = nngp_ntk_fn(nngp, prod12, ntk)
+
+    if k.diagonal_batch and k.diagonal_spatial:
+      cov1 = nngp_fn_diag(cov1)
+      if cov2 is not None:
+        cov2 = nngp_fn_diag(cov2)
+    else:
+      cov1, _ = nngp_ntk_fn(cov1, prod11)
+      if cov2 is not None:
+        cov2, _ = nngp_ntk_fn(cov2, prod22)
+
+    k = k.replace(cov1=cov1, nngp=nngp, cov2=cov2, ntk=ntk)
+    return k
+
+  return _elementwise(fn, f'{degree}-monomial', kernel_fn)
+
+
+@layer
 @supports_masking(remask_kernel=True)
 def Elementwise(
     fn: Optional[Callable[[float], float]] = None,

@@ -12,6 +12,7 @@ This codebase provides [`neural_tangents`](https://github.com/google/neural-tang
 * `Gaussian`
 * `Gelu`
 * `Hermite`
+* `Monomial`
 * `Rbf`
 * `Sigmoid_like`
 * `Sign`

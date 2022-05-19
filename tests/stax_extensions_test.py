@@ -18,8 +18,8 @@ class ActivationTest(parameterized.TestCase):
 
   def _test_activation(self, phi, get):
     key1, key2, key_mc = random.split(random.PRNGKey(1), 3)
-    x1 = random.normal(key1, (3, 2))
-    x2 = random.normal(key2, (2, 2))
+    x1 = np.cos(random.normal(key1, (3, 2)))
+    x2 = np.cos(random.normal(key2, (2, 2)))
 
     init_fn, apply_fn, kernel_fn = stax.serial(
         stax.Dense(1024),
@@ -32,13 +32,13 @@ class ActivationTest(parameterized.TestCase):
         init_fn=init_fn,
         apply_fn=apply_fn,
         key=key_mc,
-        n_samples=200,
+        n_samples=800,
         implementation=2,
         vmap_axes=0
     )
     empirical_kernel = mc_kernel_fn(x1, x2, get)
     onp.testing.assert_allclose(analytic_kernel, empirical_kernel,
-                                atol=0.015, rtol=0.04)
+                                atol=0.01, rtol=0.03)
 
   @parameterized.product(
     phi=[stax_extensions.Sign, stax_extensions.Sigmoid_like],
@@ -95,6 +95,19 @@ class ActivationTest(parameterized.TestCase):
       gamma
   ):
     self._test_activation(phi(gamma=gamma), get)
+
+  @parameterized.product(
+    phi=[stax_extensions.Monomial],
+    get=['nngp', 'ntk'],
+    degree=[0, 1, 2, 3, 4, 5],
+  )
+  def test_monomial(
+      self,
+      phi,
+      get,
+      degree
+  ):
+    self._test_activation(phi(degree=degree), get)
 
   @parameterized.product(
     phi=[stax_extensions.Gelu],
