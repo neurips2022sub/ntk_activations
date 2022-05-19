@@ -24,10 +24,10 @@ class ActivationTest(parameterized.TestCase):
     init_fn, apply_fn, kernel_fn = stax.serial(
         stax.Dense(1024),
         phi,
-        stax.Dense(1024 if get == 'nngp' else 1)
+        stax.Dense(1 if get == 'ntk' else 1024)
     )
 
-    analytic_kernel = kernel_fn(x1, x2, get)
+    analytic_kernel = kernel_fn(x1, x2, get, diagonal_spatial=True)
     mc_kernel_fn = nt.monte_carlo_kernel_fn(
         init_fn=init_fn,
         apply_fn=apply_fn,
@@ -36,13 +36,18 @@ class ActivationTest(parameterized.TestCase):
         implementation=2,
         vmap_axes=0
     )
-    empirical_kernel = mc_kernel_fn(x1, x2, get)
+
+    if get == 'cov1':
+      empirical_kernel = np.diag(mc_kernel_fn(x1, None, 'nngp'))
+    else:
+      empirical_kernel = mc_kernel_fn(x1, x2, get)
+
     onp.testing.assert_allclose(analytic_kernel, empirical_kernel,
                                 atol=0.01, rtol=0.03)
 
   @parameterized.product(
     phi=[stax_extensions.Sign, stax_extensions.Sigmoid_like],
-    get=['nngp', 'ntk'],
+    get=['cov1', 'nngp', 'ntk'],
   )
   def test_nonparametric(
       self,
@@ -53,7 +58,7 @@ class ActivationTest(parameterized.TestCase):
 
   @parameterized.product(
       phi=[stax_extensions.Sin, stax_extensions.Cos],
-      get=['nngp', 'ntk'],
+      get=['cov1', 'nngp', 'ntk'],
       a=[2., 0.3],
       b=[1.5, 0.3],
       c=[0., -np.pi/4., np.pi/2.]
@@ -70,7 +75,7 @@ class ActivationTest(parameterized.TestCase):
 
   @parameterized.product(
       phi=[stax_extensions.Exp, stax_extensions.Gaussian],
-      get=['nngp', 'ntk'],
+      get=['cov1', 'nngp', 'ntk'],
       a=[-0.5, 0.25],
       b=[-0.5, -0.1, 0.1],
   )
@@ -85,7 +90,7 @@ class ActivationTest(parameterized.TestCase):
 
   @parameterized.product(
     phi=[stax_extensions.Rbf],
-    get=['nngp', 'ntk'],
+    get=['cov1', 'nngp', 'ntk'],
     gamma=[1e-6, 1e-4, 1e-2, 1.0, 2.],
   )
   def test_rbf(
@@ -97,8 +102,8 @@ class ActivationTest(parameterized.TestCase):
     self._test_activation(phi(gamma=gamma), get)
 
   @parameterized.product(
-    phi=[stax_extensions.Monomial],
-    get=['nngp', 'ntk'],
+    phi=[stax_extensions.Monomial, stax_extensions.RectifiedMonomial],
+    get=['cov1', 'nngp', 'ntk'],
     degree=[0, 1, 2, 3, 4, 5],
   )
   def test_monomial(
@@ -111,7 +116,7 @@ class ActivationTest(parameterized.TestCase):
 
   @parameterized.product(
     phi=[stax_extensions.Gelu],
-    get=['nngp', 'ntk'],
+    get=['cov1', 'nngp', 'ntk'],
     approximate=[True, False],
   )
   def test_gelu(
@@ -183,7 +188,7 @@ class ActivationTest(parameterized.TestCase):
   @parameterized.product(
       phi=[stax_extensions.Hermite],
       get=['nngp', 'ntk'],
-      degree=[1, 2, 3, 4, 5, 6],
+      degree=[0, 1, 2, 3, 4, 5, 6],
   )
   def test_hermite(
       self,

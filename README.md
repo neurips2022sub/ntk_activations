@@ -14,6 +14,7 @@ This codebase provides [`neural_tangents`](https://github.com/google/neural-tang
 * `Hermite`
 * `Monomial`
 * `Rbf`
+* `RectifiedMonomial`
 * `Sigmoid_like`
 * `Sign`
 * `Sin`

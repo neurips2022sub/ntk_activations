@@ -32,10 +32,12 @@ Example (adapted from Neural Tangents):
   >>>  ntk = kernel_fn(x, None, 'ntk')
 """
 
+import functools
 import operator as op
 from typing import Callable, Optional, Tuple
 import warnings
 
+import numpy as onp
 import scipy as osp
 
 import jax
@@ -467,30 +469,14 @@ def Hermite(degree: int) -> InternalLayer:
   Returns:
     `(init_fn, apply_fn, kernel_fn)`.
   """
-  if degree not in [1, 2, 3, 4, 5, 6]:
-    raise NotImplementedError('The `degree` must be an integer between '
-                              '`1` and `6`.')
+  if degree < 0:
+    raise NotImplementedError('`degree` must be a non-negative integer.')
 
-  def f1(x):
-    return x
+  p = onp.polynomial.hermite_e.herme2poly([0] * degree + [1])[::-1]
+  coeff = functools.reduce(op.mul, range(1, degree + 1), 1)**0.5
 
-  def f2(x):
-    return (x**2 - 1.) / np.sqrt(2.)
-
-  def f3(x):
-    return (x**3 - 3*x) / np.sqrt(6.)
-
-  def f4(x):
-    return (x**4 - 6*x**2 + 3) / np.sqrt(24.)
-
-  def f5(x):
-    return (x**5 - 10*x**3 + 15*x) / np.sqrt(120.)
-
-  def f6(x):
-    return (x**6 - 15*x**4 + 45*x**2 - 15) / np.sqrt(720.)
-
-  hermite = {1: f1, 2: f2, 3: f3, 4: f4, 5: f5, 6: f6}
-  fn = hermite[degree]
+  def fn(x):
+    return np.polyval(p, x) / coeff
 
   def kernel_fn(k: Kernel) -> Kernel:
     warnings.warn(
@@ -498,7 +484,12 @@ def Hermite(degree: int) -> InternalLayer:
         ' channels/features, i.e. np.std(x, axis=channel_axis) == 1.')
 
     cov1, nngp, cov2, ntk = k.cov1, k.nngp, k.cov2, k.ntk
-    ntk = None if ntk is None else degree * nngp**(degree - 1) * ntk
+
+    if ntk is not None:
+      if degree == 0:
+        ntk = np.zeros_like(ntk)
+      else:
+        ntk = degree * nngp**(degree - 1) * ntk
 
     def _power(mat):
       return mat**degree if mat is not None else None
@@ -513,7 +504,7 @@ def Hermite(degree: int) -> InternalLayer:
 @layer
 @supports_masking(remask_kernel=False)
 def Monomial(degree: int) -> InternalLayer:
-  """Monomials.
+  """Monomials, i.e. `x^degree`.
 
   Args:
     degree: an integer between 0 and 5.
@@ -543,63 +534,42 @@ def Monomial(degree: int) -> InternalLayer:
         ntk: Optional[np.ndarray] = None
     ) -> Tuple[np.ndarray, Optional[np.ndarray]]:
 
-      if degree == 0:
-        nngp = np.ones_like(nngp)
+      def nngp_fn(nngp: np.ndarray, degree: int) -> np.ndarray:
+        if degree == -1:
+          nngp = np.zeros_like(nngp)
 
-        if ntk is not None:
-          ntk = np.zeros_like(ntk)
+        elif degree == 0:
+          nngp = np.ones_like(nngp)
 
-      elif degree == 1:
-        pass
+        elif degree == 1:
+          pass
 
-      elif degree == 2:
-        if ntk is not None:
-          ntk *= 4 * nngp
-        nngp = 2 * nngp**2 + prod
+        elif degree == 2:
+          nngp = 2 * nngp ** 2 + prod
 
-      elif degree == 3:
-        if ntk is not None:
-          ntk *= 9 * (2 * nngp**2 + prod)
-        nngp = 6 * nngp**3 + 9 * nngp * prod
+        elif degree == 3:
+          nngp = 6 * nngp ** 3 + 9 * nngp * prod
 
-      elif degree == 4:
-        if ntk is not None:
-          ntk *= 48 * nngp * (2 * nngp**2 + 3 * prod)
-        nngp = 3 * (8 * nngp**4 + 3 * prod * (8 * nngp**2 + prod))
+        elif degree == 4:
+          nngp = 3 * (8 * nngp ** 4 + 3 * prod * (8 * nngp ** 2 + prod))
 
-      elif degree == 5:
-        if ntk is not None:
-          ntk *= 75 * (8 * nngp**4 + 3 * prod * (8 * nngp**2 + prod))
-        nngp = 15 * nngp * (8 * nngp**4 + 5 * prod * (8 * nngp**2 + 3 * prod))
+        elif degree == 5:
+          nngp = 15 * nngp * (
+                8 * nngp ** 4 + 5 * prod * (8 * nngp ** 2 + 3 * prod))
 
-      else:
-        raise NotImplementedError(degree)
+        else:
+          raise NotImplementedError(degree)
 
+        return nngp
+
+      if ntk is not None:
+        ntk *= degree**2 * nngp_fn(nngp, degree - 1)
+
+      nngp = nngp_fn(nngp, degree)
       return nngp, ntk
 
     def nngp_fn_diag(nngp: np.ndarray) -> np.ndarray:
-      if degree == 0:
-        nngp = np.ones_like(nngp)
-
-      elif degree == 1:
-        pass
-
-      elif degree == 2:
-        nngp = 2 + nngp**2
-
-      elif degree == 3:
-        nngp = 6 + 9 * nngp**2
-
-      elif degree == 4:
-        nngp = 3 * (8 + 24 * nngp**2 + 3 * nngp**4)
-
-      elif degree == 5:
-        nngp = 15 * (8 + 5 * nngp**2 * (8 + 3 * nngp**2))
-
-      else:
-        raise NotImplementedError(degree)
-
-      return nngp
+      return _double_factorial(2 * degree - 1) * nngp**degree
 
     nngp, ntk = nngp_ntk_fn(nngp, prod12, ntk)
 
@@ -616,6 +586,91 @@ def Monomial(degree: int) -> InternalLayer:
     return k
 
   return _elementwise(fn, f'{degree}-monomial', kernel_fn)
+
+
+@layer
+@supports_masking(remask_kernel=False)
+def RectifiedMonomial(degree: int) -> InternalLayer:
+  """Rectified monomials, i.e. `(x >= 0) * x^degree`.
+
+  Args:
+    degree: a non-negative integer power.
+
+  Returns:
+    `(init_fn, apply_fn, kernel_fn)`.
+  """
+  if degree < 0:
+    raise NotImplementedError('`degree` must be a non-negative integer.')
+
+  def fn(x):
+    return (x >= 0) * x**degree
+
+  def kernel_fn(k: Kernel) -> Kernel:
+    cov1, nngp, cov2, ntk = k.cov1, k.nngp, k.cov2, k.ntk
+
+    prod11, prod12, prod22 = get_diagonal_outer_prods(cov1,
+                                                      cov2,
+                                                      k.diagonal_batch,
+                                                      k.diagonal_spatial,
+                                                      op.mul)
+
+    def j(nngp: np.ndarray, sqrt_prod: np.ndarray) -> np.ndarray:
+      theta = np.arccos(nngp / sqrt_prod)
+
+      def f0(theta: np.ndarray) -> np.ndarray:
+        return (np.pi - theta) / np.sin(theta)
+
+      def diff(f: Callable[[np.ndarray], np.ndarray]
+               ) -> Callable[[np.ndarray], np.ndarray]:
+
+        def df(theta: np.ndarray) -> np.ndarray:
+          return np.vectorize(grad(f))(theta) / np.sin(theta)
+
+        return df
+
+      f = f0
+      for _ in range(degree):
+        f = diff(f)
+
+      return (-1)**degree * (np.sin(theta))**(2 * degree + 1) * f(theta)
+
+    def nngp_ntk_fn(
+        nngp: np.ndarray,
+        prod: np.ndarray,
+        ntk: Optional[np.ndarray] = None
+    ) -> Tuple[np.ndarray, Optional[np.ndarray]]:
+
+      sqrt_prod = _sqrt(prod)
+      coeff = sqrt_prod**degree / (2 * np.pi)
+
+      if ntk is not None:
+        if degree == 0:
+          ntk = np.zeros_like(ntk)
+        else:
+          j_dot = np.vectorize(grad(j))(nngp, sqrt_prod)
+          ntk *= coeff * j_dot
+
+      nngp = coeff * j(nngp, sqrt_prod)
+      return nngp, ntk
+
+    def nngp_fn_diag(nngp: np.ndarray) -> np.ndarray:
+      return _double_factorial(2 * degree - 1) * nngp**degree / 2
+
+    nngp, ntk = nngp_ntk_fn(nngp, prod12, ntk)
+
+    if k.diagonal_batch and k.diagonal_spatial:
+      cov1 = nngp_fn_diag(cov1)
+      if cov2 is not None:
+        cov2 = nngp_fn_diag(cov2)
+    else:
+      cov1, _ = nngp_ntk_fn(cov1, prod11)
+      if cov2 is not None:
+        cov2, _ = nngp_ntk_fn(cov2, prod22)
+
+    k = k.replace(cov1=cov1, nngp=nngp, cov2=cov2, ntk=ntk)
+    return k
+
+  return _elementwise(fn, f'{degree}-rectified-monomial', kernel_fn)
 
 
 @layer
@@ -904,3 +959,7 @@ def _vmap_2d(fn: Callable[[float, float, float], float],
   out = out.reshape(out_shape)
   out = utils.zip_axes(out, start, cov_end)
   return out
+
+
+def _double_factorial(n: int) -> int:
+  return functools.reduce(op.mul, range(n, 0, -2), 1)
