@@ -13,6 +13,7 @@ This codebase provides [`neural_tangents`](https://github.com/google/neural-tang
 * `Gelu`
 * `Hermite`
 * `Monomial`
+* `Polynomial`
 * `Rbf`
 * `RectifiedMonomial`
 * `Sigmoid_like`

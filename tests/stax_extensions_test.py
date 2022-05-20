@@ -115,6 +115,30 @@ class ActivationTest(parameterized.TestCase):
     self._test_activation(phi(degree=degree), get)
 
   @parameterized.product(
+    phi=[stax_extensions.Polynomial],
+    get=['cov1', 'nngp', 'ntk'],
+    coef=[
+        [],
+        [0],
+        [-2],
+        [0, 0],
+        [0, 1],
+        [1, 0],
+        [1, -1],
+        [-0.5, 1.2],
+        [1.3, 0, -1.2, -0.5],
+        [-0.1, 2.1, 0, 0, -1.2, -0.5, 0, 0]
+    ],
+  )
+  def test_polynomial(
+      self,
+      phi,
+      get,
+      coef
+  ):
+    self._test_activation(phi(coef=coef), get)
+
+  @parameterized.product(
     phi=[stax_extensions.Gelu],
     get=['cov1', 'nngp', 'ntk'],
     approximate=[True, False],

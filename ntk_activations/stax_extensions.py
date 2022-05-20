@@ -34,7 +34,7 @@ Example (adapted from Neural Tangents):
 
 import functools
 import operator as op
-from typing import Callable, Optional, Tuple
+from typing import Callable, Optional, Tuple, Sequence
 import warnings
 
 import numpy as onp
@@ -459,16 +459,16 @@ def ExpNormalized(
 def Hermite(degree: int) -> InternalLayer:
   """Hermite polynomials.
 
-  Inputs to this layer are assumed to have unit norm, i.e.
-  `np.std(x, axis=channel_axis) == 1`. The Hermite polynomials are normailized
-  so that the L2 norm w.r.t. standard Gaussian is 1.
+    Inputs to this layer are assumed to have unit norm, i.e.
+    `np.std(x, axis=channel_axis) == 1`. The Hermite polynomials are normalized
+    so that the L2 norm w.r.t. standard Gaussian is 1.
 
-  Args:
-    degree: an integer between 1 and 6.
+    Args:
+      degree: an integer between 1 and 6.
 
-  Returns:
-    `(init_fn, apply_fn, kernel_fn)`.
-  """
+    Returns:
+      `(init_fn, apply_fn, kernel_fn)`.
+    """
   if degree < 0:
     raise NotImplementedError('`degree` must be a non-negative integer.')
 
@@ -674,6 +674,102 @@ def RectifiedMonomial(degree: int) -> InternalLayer:
 
 
 @layer
+@supports_masking(remask_kernel=False)
+def Polynomial(coef: Sequence[float]) -> InternalLayer:
+  """Polynomials, i.e. `coef[0] + coef[1] * x + ... + coef[n] * x**n`.
+
+  Args:
+    coef: a sequence of coefficients. Follows `numpy.polynomial.Polynomial` API.
+
+  Returns:
+    `(init_fn, apply_fn, kernel_fn)`.
+  """
+  coef = onp.array(coef)
+
+  def fn(x):
+    return np.polyval(coef[::-1], x)
+
+  degree = len(coef)
+
+  def kernel_fn(k: Kernel) -> Kernel:
+    cov1, nngp, cov2, ntk = k.cov1, k.nngp, k.cov2, k.ntk
+
+    def r(n: Optional[np.ndarray], l: int) -> Optional[np.ndarray]:
+      if n is None:
+        return None
+
+      coef_dict = {
+          2 * i + l: coef[2 * i + l] * _factorial(2 * i + l) / (
+              2**i * _factorial(i) * _factorial(l)**0.5)
+          for i in range(0, (degree - 1 - l) // 2 + 1)
+      }
+      coef_l = onp.array(
+        [coef_dict[i] if i in coef_dict else 0 for i in range(degree)])
+      return np.polyval(coef_l[::-1], n**0.5)
+
+    if degree == 0:
+      rs11, rs12, rs22 = [], [], []
+    else:
+      rs11, rs12, rs22 = list(zip(*[
+          get_diagonal_outer_prods(r(cov1, l),
+                                   r(cov2, l),
+                                   k.diagonal_batch,
+                                   k.diagonal_spatial,
+                                   op.mul)
+          for l in range(degree)
+      ]))
+
+    prod11, prod12, prod22 = get_diagonal_outer_prods(cov1,
+                                                      cov2,
+                                                      k.diagonal_batch,
+                                                      k.diagonal_spatial,
+                                                      op.mul)
+
+    def nngp_ntk_fn(
+        nngp: np.ndarray,
+        prod: np.ndarray,
+        r_prods: Sequence[np.ndarray],
+        ntk: Optional[np.ndarray] = None
+    ) -> Tuple[np.ndarray, Optional[np.ndarray]]:
+      ratio = nngp / _sqrt(prod)
+
+      if ntk is not None:
+        t_dot = np.zeros_like(ntk)
+        for l in range(1, degree):
+          t_dot += l * r_prods[l] * ratio**(l - 1)
+        ntk *= t_dot / _sqrt(prod)
+
+      nngp = np.zeros_like(nngp)
+      for l in range(degree):
+        nngp += r_prods[l] * ratio ** l
+
+      return nngp, ntk
+
+    def nngp_fn_diag(nngp: np.ndarray,
+                     r_prods: Sequence[np.ndarray]) -> np.ndarray:
+      out = np.zeros_like(nngp)
+      for l in range(degree):
+        out += r_prods[l]
+      return out
+
+    nngp, ntk = nngp_ntk_fn(nngp, prod12, rs12, ntk)
+
+    if k.diagonal_batch and k.diagonal_spatial:
+      cov1 = nngp_fn_diag(cov1, rs11)
+      if cov2 is not None:
+        cov2 = nngp_fn_diag(cov2, rs22)
+    else:
+      cov1, _ = nngp_ntk_fn(cov1, prod11, rs11)
+      if cov2 is not None:
+        cov2, _ = nngp_ntk_fn(cov2, prod22, rs22)
+
+    k = k.replace(cov1=cov1, nngp=nngp, cov2=cov2, ntk=ntk)
+    return k
+
+  return _elementwise(fn, f'{coef}-polynomial', kernel_fn)
+
+
+@layer
 @supports_masking(remask_kernel=True)
 def Elementwise(
     fn: Optional[Callable[[float], float]] = None,
@@ -819,9 +915,9 @@ def ElementwiseNumerical(
     `(init_fn, apply_fn, kernel_fn)`.
   """
   warnings.warn(
-      f'Numerical Activation Layer with fn={fn}, deg={deg} used!'
-      'Note that numerical error is controlled by `deg` and for a given'
-      'tolerance level, required `deg` will highly be dependent on the choice'
+      f'Numerical Activation Layer with fn={fn}, deg={deg} used! '
+      'Note that numerical error is controlled by `deg` and for a given '
+      'tolerance level, required `deg` will highly be dependent on the choice '
       'of `fn`.')
 
   quad_points = osp.special.roots_hermite(deg)
@@ -959,6 +1055,10 @@ def _vmap_2d(fn: Callable[[float, float, float], float],
   out = out.reshape(out_shape)
   out = utils.zip_axes(out, start, cov_end)
   return out
+
+
+def _factorial(n: int) -> int:
+  return functools.reduce(op.mul, range(1, n + 1), 1)
 
 
 def _double_factorial(n: int) -> int:
