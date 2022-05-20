@@ -13,6 +13,7 @@ This codebase provides [`neural_tangents`](https://github.com/google/neural-tang
 * `Cos`
 * `ExpNormalized`
 * `Exp`
+* `Gabor`
 * `Gaussian`
 * `Gelu`
 * `Hermite`

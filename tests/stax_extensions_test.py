@@ -46,7 +46,11 @@ class ActivationTest(parameterized.TestCase):
                                 atol=0.01, rtol=0.05)
 
   @parameterized.product(
-    phi=[stax_extensions.Sign, stax_extensions.Sigmoid_like],
+    phi=[
+        stax_extensions.Gabor,
+        stax_extensions.Sign,
+        stax_extensions.Sigmoid_like
+    ],
     get=['cov1', 'nngp', 'ntk'],
   )
   def test_nonparametric(

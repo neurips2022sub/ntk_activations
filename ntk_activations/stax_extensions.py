@@ -68,6 +68,70 @@ def Sigmoid_like():
 
 @layer
 @supports_masking(remask_kernel=False)
+def Gabor() -> InternalLayer:
+  """Gabor function `exp(-x^2) * sin(x)`.
+
+  Returns:
+    `(init_fn, apply_fn, kernel_fn)`.
+  """
+
+  def fn(x):
+    return np.exp(-x**2) * np.sin(x)
+
+  def kernel_fn(k: Kernel) -> Kernel:
+    cov1, nngp, cov2, ntk = k.cov1, k.nngp, k.cov2, k.ntk
+
+    prod11, prod12, prod22 = get_diagonal_outer_prods(
+      cov1, cov2, k.diagonal_batch, k.diagonal_spatial, op.mul)
+
+    sum11, sum12, sum22 = get_diagonal_outer_prods(
+      cov1, cov2, k.diagonal_batch, k.diagonal_spatial, op.add)
+
+    def nngp_ntk_fn(
+        nngp: np.ndarray,
+        prod: np.ndarray,
+        sum_: np.ndarray,
+        ntk: Optional[np.ndarray] = None
+    ) -> Tuple[np.ndarray, Optional[np.ndarray]]:
+      diff = 4 * (prod - nngp**2)
+      denom = 2 * sum_ + diff + 1
+      num = sum_ + diff + 2 * nngp
+      exp_left = np.exp(-num / (2 * denom))
+      exp_right = np.exp(2 * nngp / denom)
+
+      if ntk is not None:
+        shared_term = 1 + 2 * sum_ + 4 * (nngp**2 + prod)
+        diff_term = 4 * nngp * (diff + 3 * sum_ + 2)
+        lhs = shared_term - diff_term
+        rhs = shared_term + diff_term
+        t_dot = exp_left * (lhs + exp_right * rhs) / denom**(5. / 2)
+        ntk *= t_dot / 2
+
+      nngp = exp_left * (exp_right - 1) / (2 * _sqrt(denom))
+      return nngp, ntk
+
+    def nngp_fn_diag(nngp: np.ndarray) -> np.ndarray:
+      denom = 1 + 4 * nngp
+      return (1 - np.exp(-2 * nngp / denom)) / (2 * _sqrt(denom))
+
+    nngp, ntk = nngp_ntk_fn(nngp, prod12, sum12, ntk)
+
+    if k.diagonal_batch and k.diagonal_spatial:
+      cov1 = nngp_fn_diag(cov1)
+      if cov2 is not None:
+        cov2 = nngp_fn_diag(cov2)
+    else:
+      cov1, _ = nngp_ntk_fn(cov1, prod11, sum11)
+      if cov2 is not None:
+        cov2, _ = nngp_ntk_fn(cov2, prod22, sum22)
+
+    return k.replace(cov1=cov1, nngp=nngp, cov2=cov2, ntk=ntk)
+
+  return _elementwise(fn, 'Gabor', kernel_fn)
+
+
+@layer
+@supports_masking(remask_kernel=False)
 def Gelu(
     approximate: bool = False) -> InternalLayer:
   """Gelu function.
