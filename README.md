@@ -1,6 +1,10 @@
 # Fast Neural Kernel Embeddings for General Activations
 
-Anonymous code supplement for the [NeurIPS 2022 submission](https://openreview.net/forum?id=yLilJ1vZgMe).
+[![Tests](https://github.com/neurips2022sub/ntk_activations/actions/workflows/test.yaml/badge.svg)](https://github.com/neurips2022sub/ntk_activations/actions/workflows/test.yaml)
+[![Pytype](https://github.com/neurips2022sub/ntk_activations/actions/workflows/pytype.yaml/badge.svg)](https://github.com/neurips2022sub/ntk_activations/actions/workflows/pytype.yaml)
+[![Coverage](https://codecov.io/gh/neurips2022sub/ntk_activations/branch/main/graph/badge.svg)](https://codecov.io/gh/neurips2022sub/ntk_activations)
+
+**Anonymous code supplement for the [NeurIPS 2022 submission](https://openreview.net/forum?id=yLilJ1vZgMe).**
 
 This codebase provides [`neural_tangents`](https://github.com/google/neural-tangents) implementations of NTK and NNGP kernels for new nonlinearities:
 

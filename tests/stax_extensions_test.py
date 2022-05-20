@@ -43,7 +43,7 @@ class ActivationTest(parameterized.TestCase):
       empirical_kernel = mc_kernel_fn(x1, x2, get)
 
     onp.testing.assert_allclose(analytic_kernel, empirical_kernel,
-                                atol=0.01, rtol=0.03)
+                                atol=0.01, rtol=0.05)
 
   @parameterized.product(
     phi=[stax_extensions.Sign, stax_extensions.Sigmoid_like],
