@@ -25,6 +25,8 @@ This codebase provides [`neural_tangents`](https://github.com/google/neural-tang
 * `Sign`
 * `Sin`
 
+It also provides dual kernel approximation via Hermite expansion. See `ntk_activations/dual_kernels.py`.
+
 ## Usage
 
 Clone the package: 
@@ -41,7 +43,12 @@ python examples/elementwise_numerical.py
 ```
 or open the [example Colab](https://colab.research.google.com/github/neurips2022sub/ntk_activations/blob/main/example.ipynb).
 
-To run tests:
+To run tests for extensions of [`neural_tangents`](https://github.com/google/neural-tangents):
 ```commandline
 python tests/stax_extensions_test.py
+```
+
+To run tests for kernel approximations with Hermite expansion:
+```commandline
+python tests/dual_kernels_test.py
 ```
