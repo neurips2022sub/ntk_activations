@@ -48,7 +48,8 @@ To run tests for extensions of [`neural_tangents`](https://github.com/google/neu
 python tests/stax_extensions_test.py
 ```
 
-To run tests for kernel approximations with Hermite expansion:
+To run tests for kernel approximations with Hermite expansion for GeLU activation:
 ```commandline
-python tests/dual_kernels_test.py
+python examples/dual_kernel_approx.py --act gelu
 ```
+For other activations such as `relu`, `sin`, `gaussian`, `erf`, `abs`, please replace the argument `gelu` with the other one (e.g., `--act erf`).
