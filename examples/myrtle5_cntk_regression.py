@@ -8,7 +8,7 @@ from jax import jit
 import jax.numpy as np
 from jax import random
 
-from ntk_activations.stax_extensions_features import NormGaussFeatures, ConvFeatures, AvgPoolFeatures, FlattenFeatures, DenseFeatures, serial
+from ntk_activations.stax_extensions_features import ExpNormalizedFeatures, ConvFeatures, AvgPoolFeatures, FlattenFeatures, DenseFeatures, serial
 
 layer_factor = {5: [2, 1, 1], 7: [2, 2, 2], 10: [3, 3, 3]}
 
@@ -19,7 +19,7 @@ def MyrtleNetworkFeatures(act,
                           width=1,
                           **relu_args):
 
-  act_func = NormGaussFeatures
+  act_func = ExpNormalizedFeatures
 
   layers = []
   layers += [
@@ -163,8 +163,8 @@ def main():
   depth = args.depth
   act = args.act
   poly_degree = args.degree
-  poly_sketch_dim = args.feat_dim  # 10000-16384 runs on A100 but produces nans!
-  sketch_dim = args.feat_dim  # 10000-16384 runs on A100 but produces nans!
+  poly_sketch_dim = args.feat_dim
+  sketch_dim = args.feat_dim
   x = x_train[:1]
 
   act = f"normgauss{args.normgauss_a}"
