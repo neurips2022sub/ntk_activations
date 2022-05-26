@@ -9,7 +9,6 @@ config.update("jax_enable_x64", True)
 import time
 import numpy as np
 import argparse
-from tqdm import tqdm
 
 from ntk_activations.polynomials import hermite_polfit, hermite_coeffs_relu, hermite2mono
 from ntk_activations.dual_kernels import dual_kernel_exact, dual_kernel_poly, dual_kernel_empirical, get_act
@@ -83,39 +82,32 @@ def test_single_layer_nngp_kernel_approx():
 
     # 2. estimate the dual kernel via Hermite series expansion
     j = 0
-    with tqdm(total=len(degrees)) as pbar:
-      for deg in degrees:
-        coeffs = coeffs_all['hermite'][deg]
+    
+    for deg in degrees:
+      coeffs = coeffs_all['hermite'][deg]
 
-        tic1 = time.time()
-        k_poly = dual_kernel_poly(coeffs, x, 1)
-        times['hermite'][i, j] = time.time() - tic1
+      tic1 = time.time()
+      k_poly = dual_kernel_poly(coeffs, x, 1)
+      times['hermite'][i, j] = time.time() - tic1
 
-        rel_err = np.linalg.norm(k_exact - k_poly, 'fro') / k_exact_norm
+      rel_err = np.linalg.norm(k_exact - k_poly, 'fro') / k_exact_norm
 
-        errors['hermite'][i, j] = rel_err
-        pbar.update(1)
-        pbar.set_description(f"[Hermt] deg: {deg}, err: {rel_err:.2e}")
-        # print(f"[Hermt] deg: {deg}, err: {rel_err:.2e}")
-        j += 1
+      errors['hermite'][i, j] = rel_err
+      j += 1
 
     # 3. estimate by Monte-Carlo method
     j = 0
-    with tqdm(total=len(num_hiddens)) as pbar:
-      for m in num_hiddens:
-        key2 = jax.random.PRNGKey(args.seed + 19 * i)
+    for m in num_hiddens:
+      key2 = jax.random.PRNGKey(args.seed + 19 * i)
 
-        tic2 = time.time()
-        k_mc = dual_kernel_empirical(x, key2, m, args.act)
-        times['mc'][i, j] = time.time() - tic2
+      tic2 = time.time()
+      k_mc = dual_kernel_empirical(x, key2, m, args.act)
+      times['mc'][i, j] = time.time() - tic2
 
-        rel_err2 = np.linalg.norm(k_exact - k_mc, 'fro') / k_exact_norm
+      rel_err2 = np.linalg.norm(k_exact - k_mc, 'fro') / k_exact_norm
 
-        errors['mc'][i, j] = rel_err2
-
-        pbar.update(1)
-        pbar.set_description(f"[MC   ] smp: {m}, err: {rel_err2: .3e}")
-        j += 1
+      errors['mc'][i, j] = rel_err2
+      j += 1
 
     print(
         f"{i} / {args.num_iters} | time_elapsed : {time.time() - tic0:.4f} sec")
