@@ -112,9 +112,7 @@ def _mul_diag_mtx(diag_: jnp.ndarray, mtx_: jnp.ndarray):
   return jnp.outer(diag_, diag_) * mtx_
 
 
-def dual_kernel_poly_approx(coeffs: jnp.ndarray,
-                            x: jnp.ndarray,
-                            a: float = 1.0):
+def dual_kernel_poly(coeffs: jnp.ndarray, x: jnp.ndarray, a: float = 1.0):
   xnorms = jnp.linalg.norm(x, axis=-1)[:, None] / a
   log_xnorms = jnp.log(xnorms)
   x_ = x / xnorms
