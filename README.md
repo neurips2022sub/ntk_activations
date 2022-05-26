@@ -27,7 +27,7 @@ This codebase provides [`neural_tangents`](https://github.com/google/neural-tang
 
 It also provides dual kernel approximation via Hermite expansion. See `ntk_activations/dual_kernels.py`.
 
-## Usage
+## Install
 
 Clone the package: 
 ```commandline 
@@ -35,6 +35,8 @@ git clone https://github.com/neurips2022sub/ntk_activations.git
 cd ntk_activations 
 pip install -e .
 ```
+
+## Usage
 
 To run examples:
 ```commandline
@@ -48,8 +50,14 @@ To run tests for extensions of [`neural_tangents`](https://github.com/google/neu
 python tests/stax_extensions_test.py
 ```
 
-To run tests for kernel approximations with Hermite expansion for GeLU activation:
+To run dual kernel approximations with Hermite expansion for GeLU activation:
 ```commandline
 python examples/dual_kernel_approx.py --act gelu
 ```
 For other activations such as `relu`, `sin`, `gaussian`, `erf`, `abs`, please replace the argument `gelu` with the other one (e.g., `--act erf`).
+
+To run convolutional NTK (CNTK) sketch algorithm for regression with CIFAR-10 dataset:
+```command
+python examples/myrtle5_cntk_regression.py
+```
+This approximates CNTK of depth-5 convolutional neural networks (a.k.a. Myrtle-5) by sketching algorithms where dual kernel of its activation corresponds to the normalized Gaussian kernel. A scaling factor of the normalized Gaussian kernel is changed with argument, e.g., `--normgauss_a 0.5` (default is `1`). All modules for NTK features are based on [`neural_tangents`](https://github.com/google/neural-tangents) (see `ntk_activations/stax_extensions_features.py`) and sketching algorithms are implemented in `ntk_activations/sketching.py`.
