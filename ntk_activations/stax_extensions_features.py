@@ -170,10 +170,10 @@ def DenseFeatures(out_dim: int,
 
 
 @layer
-def NormGaussFeatures(sketch_dim: int = 1,
-                      poly_degree: int = 8,
-                      poly_sketch_dim: int = 1,
-                      a: float = 1.0):
+def ExpNormalizedFeatures(sketch_dim: int = 1,
+                          poly_degree: int = 8,
+                          poly_sketch_dim: int = 1,
+                          a: float = 1.0):
 
   def init_fn(rng, input_shape):
     nngp_feat_shape, ntk_feat_shape = input_shape[0], input_shape[1]
